@@ -1,10 +1,19 @@
 
 # For Soil Water Index raw data download and time series analysisrequire(R.utils)
+
+# install.packages("R.utils", "raster", "spgrass6", dependecies = TRUE)
+suppressPackageStartupMessages({
+require(R.utils)
 require(raster)
 require(spgrass6)
+}
 
 rm(list=ls())
-setwd("/data2/soil_water/raws2")
+
+# set working directory -------------------
+setwd("~")
+dir.create("soil_water", showWarnings = FALSE)
+setwd("/soil_water")
 
 ##### Step 1: Download the raws
 
