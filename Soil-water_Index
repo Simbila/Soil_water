@@ -1,0 +1,113 @@
+
+# For Soil Water Index raw data download and time series analysisrequire(R.utils)
+require(raster)
+require(spgrass6)
+
+rm(list=ls())
+setwd("/data2/soil_water/raws2")
+
+##### Step 1: Download the raws
+
+#the base downloading url
+base.url = "ftp://ftp.copernicus.vgt.vito.be/M0025708/"
+
+url = base.url
+
+tmp.dir = "./"
+
+list.fname = paste(tmp.dir, "observations.txt",sep="")
+
+username="yzhan888"
+pwd="xxxxxxxxx"
+extra = paste("--ftp-user=",username," --ftp-password=",pwd,sep="")
+
+#download the data list information
+download.file(url,list.fname,method="wget",extra=extra)
+
+
+html = scan(list.fname,"character")
+
+#grep the valid information for downloading
+valid = html[ grep("SWI10", html)]
+valid2= substring(valid,13,nchar(valid)-44)
+valid3=substring(valid,52,nchar(valid)-45)
+sub_url=paste("ftp://",valid2,"g2_BIOPAR_",valid3,".zip",sep="")
+
+sub_txt=paste("./",valid3,".zip",sep="")
+
+#sub_txt=paste("./",txt_valid,".txt",sep="")
+#lapply(sub_url,download.file,destfile=sub_txt,method="wget",extra=extra)
+
+for (i in 1:length(sub_url)){
+  download.file(sub_url[i],sub_txt[i],method="wget",extra=extra)
+}
+
+
+##### Step 2: reproject to lambert
+
+folder_list=list.files(pattern="^20.*",full.names=T)
+folder2 = substring(folder_list,2,nchar(folder_list))
+
+#create detailed output folders
+lapply(paste("../laea2",folder2,sep=""),
+       function(x) if(!dir.exists(x)) dir.create(x,mode="0775",showWarnings=T))
+
+#list all the files of your chosing year as inputs
+ip = list.files(pattern = "g2_BIOPAR_SWI10_20.*._SWI10_SWI_.*.tif",full.names = T,recursive=T) 
+ip2 = substring(ip,2,nchar(ip)-5)
+ip2
+
+#create a new name as output
+#op1 = paste("/data2/soil_water/geo/",ip2,".tif",sep="")
+#op1
+
+op2 = paste("../laea2",ip2,"_laea.tif",sep="")
+op2
+#j=1
+
+#b=extent(-20,60,-40,40)
+
+#bulk reproject
+for (j in 1:length(ip)) {
+  #transfer=raster(ip[j])
+  #transfer2=crop(transfer,b)
+  
+  #writeRaster(transfer2,file=op1[j],format="GTiff",overwrite=T)
+  system(command= paste("gdalwarp -overwrite -t_srs '+proj=laea +lat_0=5 +lon_0=20 +x_0=0 +y_0=0 +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs' -multi -wm 500",
+                        ip[j],
+                        op2[j]))
+}
+
+
+##### Step 2: time series and std
+
+#values(raster(op2[j]))
+setwd("/data2/soil_water/laea2")
+
+rm(list=ls())
+op3=list.files(pattern = "*.SWI_100_laea.tif",full.names = T,recursive=T)
+op3
+
+north         = lapply(op3,raster)
+north_stack   = stack(north)
+
+north_average = calc(north_stack,mean,na.rm=T)
+values  = values(north_average)
+values(north_average) = values
+writeRaster(north_average,file="/data2/soil_water/SWI10_Africa_2007_2017_SWI10_100_avg.tif",format="GTiff",overwrite=T)
+
+
+north_std = calc(north_stack,sd,na.rm=T)
+values  = values(north_std)
+values(north_std) = values
+writeRaster(north_std,file="/data2/soil_water/SWI10_Africa_2007_2017_SWI10_100_std.tif",format="GTiff",overwrite=T)
+
+
+
+##### Step 3: clip
+setwd("/data2/scripts")
+mapset="soil_yz5"
+system(command=paste("bash clip_rasters.sh -c /data2/gadm2 -i /data2/soil_water -m /data3/grassdata/lambert/",mapset," -r 10000",sep=""))
+
+
+##end
